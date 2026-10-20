@@ -95,4 +95,7 @@ builds on every push and uploads the artifact `TwoWheelSimulator-windows-x64`; g
 - **Rolling radius:** uses R_e = R0 - deflection/3, from the previous tick.
 - **The rig** is a quarter bike (load on a shock), not a rigid mass: a rigid 150 kg on a tyre bounces like a pogo
   stick, which is real but useless for testing.
+- **Controller and haptics** (`game/pad.*`): the owner's GameSir shows up as "XInput Controller #1", which has no
+  trigger rumble (XInput); body rumble works. Rumble only runs after a controller button press, so off-screen test
+  runs never buzz the owner's pad. Screenshot runs print the haptic levels (heavy/light/LT/RT) for checking.
 - **Friction values** (`sim/terrain.cpp`) are first estimates. Tune them against feel once the bike rides (M1).

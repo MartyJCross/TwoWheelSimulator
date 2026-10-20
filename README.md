@@ -8,10 +8,30 @@ telemetry.
 **Status: M0, the wheel lab.** One wheel with the flexible tyre on rigid ground, so the tyre physics can be seen and
 tested before the bike is built on top of it. The design lives in [`docs/`](docs/).
 
-## Running the wheel lab
+## How to launch
 
-Get `twowheel.exe` from the latest GitHub Actions run (artifact `TwoWheelSimulator-windows-x64`) or build it (below).
-It needs no install.
+**Option A: the copy built on this PC (quickest).**
+1. Open File Explorer and go to
+   `C:\Users\matth\Desktop\Personal\Development\Games\TwoWheelSimulator\build\Release\`
+2. Double-click **`twowheel.exe`**.
+3. Optional: right-click `twowheel.exe` → *Show more options* → *Send to* → *Desktop (create shortcut)* to get a
+   desktop icon.
+
+**Option B: download the latest build from GitHub.**
+1. Open the repo's **Actions** tab: <https://github.com/MartyJCross/TwoWheelSimulator/actions>
+2. Click the newest run with a green tick.
+3. Scroll to **Artifacts** at the bottom and click **TwoWheelSimulator-windows-x64** to download the zip.
+4. Unzip it anywhere (right-click → *Extract All*) and double-click **`twowheel.exe`**.
+5. If Windows shows "Windows protected your PC", click **More info → Run anyway**. The exe isn't code-signed, so this
+   is expected.
+
+Nothing needs installing. Close the game with **Esc** or the window's X.
+
+**Controller:** plug it in (USB or Bluetooth) before or after launching; it's picked up automatically. Press any
+button on it to switch to it; touching the keyboard or mouse switches back. The **Controller** section of the panel
+shows its name, a haptics on/off switch, a strength slider and live meters for each motor.
+
+## Using the wheel lab
 
 **Two modes:**
 - **Quarter-bike rig:** a wheel carrying a load on a 30 cm-travel shock, pulled along the obstacle lane at a set speed:
@@ -26,7 +46,31 @@ It needs no install.
 - The **measurements** panel: forces, slip, deflection, patch area, elements sliding, rim strikes.
 - The green line is the total force from the ground; the pink one is its horizontal part (x4).
 
-**Controls:**
+**Controller (Xbox layout):**
+
+| Input | Action |
+|---|---|
+| RT | Drive torque (analogue) |
+| LT | Brake (analogue, fine control near the top of the travel) |
+| Left stick | Steer the rig (slip angle) / push the free wheel sideways |
+| LB / RB | Lean the rig wheel (camber) |
+| A | Hop (free wheel) |
+| B | Switch rig <-> free wheel |
+| X | Switch obstacle lane <-> flat ground |
+| Y | Reset / relaunch |
+| D-pad left / right | Tyre pressure -1 / +1 psi |
+| D-pad up / down | Speed +/- 0.5 m/s |
+| Right stick | Camera; R3 resets it, L3 cycles zoom |
+| Start | Pause |
+| Back / View | Hide the panels |
+
+**Haptics** (sim data only, as in The Ledger):
+- **Heavy motor:** jolts and load changes (bumps, rollers, the log, landings), plus a hard knock on a rim strike.
+- **Light motor:** tread sliding (wheelspin, lock-up, skids), plus a faint hum while rolling.
+- **Trigger rumble:** RT buzzes when the tyre spins under drive, and LT buzzes when it slides under the brake. This
+  only works on controllers with impulse triggers (Xbox One/Series pads); the meters show the signal either way.
+
+**Keyboard and mouse:**
 
 | Input | Action |
 |---|---|
@@ -38,8 +82,8 @@ It needs no install.
 | F1 | Hide the panels |
 | Esc | Quit |
 
-Command line (for testing): `--mode rig|free`, `--scene lane|flat`, `--speed <m/s>`, `--size 1600x900`,
-`--position x,y`, `--cam yaw,pitch,dist`, `--no-ui`, `--screenshot out.png --frames N`.
+Command line (for testing): `--mode rig|free`, `--scene lane|flat`, `--speed <m/s>`, `--drive <N*m>`,
+`--size 1600x900`, `--position x,y`, `--cam yaw,pitch,dist`, `--no-ui`, `--screenshot out.png --frames N`.
 
 ## Building
 

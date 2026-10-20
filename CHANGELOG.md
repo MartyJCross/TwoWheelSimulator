@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.0: Controller and haptics
+
+- **Controller support (SDL3; Xbox layout, GameSir tested as XInput):**
+  - Picked up when plugged in, at any time.
+  - The game switches to the controller on any button press and back on keyboard or mouse input, as in The Ledger.
+  - Analogue triggers for drive and brake; the left stick steers the rig or pushes the free wheel; bumpers lean the
+    rig; buttons for hop, mode, scene, reset, pressure and speed; the right stick moves the camera.
+- **Haptics from the sim:**
+  - Heavy motor: jolts and load changes, plus rim strikes.
+  - Light motor: tread sliding, plus a rolling hum.
+  - Trigger rumble for spin under drive and slide under the brake, on pads that support it.
+  - On/off switch, strength slider and live motor meters in the panel.
+- README: a step-by-step launch guide.
+
 ## v0.1.0: Wheel lab (M0)
 
 - **The tyre:** 128 x 7 carcass elements over a round tread profile.
