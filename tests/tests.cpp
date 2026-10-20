@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "articulated.h"
 #include "wheel_lab.h"
 
 using namespace tws;
@@ -281,6 +282,121 @@ TEST(determinism_same_inputs_same_state) {
         return lab.stateHash();
     };
     CHECK(runOnce() == runOnce());
+}
+
+// --- Articulated-body solver ----------------------------------------------------------------------------------
+
+namespace {
+// A small tree: base box, a revolute arm with a wheel-like body, a prismatic slider on the base.
+Articulated makeTree() {
+    Articulated a;
+    a.base_mass = 20;
+    a.base_com = {0.0, 0.05, 0.1};
+    a.base_inertia = Mat3::diag(0.8, 1.0, 0.6);
+    a.base_pos = {0, 1, 0};
+    Body arm;
+    arm.parent = -1;
+    arm.type = JointType::Revolute;
+    arm.axis = normalize(Vec3{1, 0.2, 0});
+    arm.joint_pos = {0.1, 0.0, 0.3};
+    arm.mass = 4;
+    arm.com = {0, -0.2, 0.1};
+    arm.inertia = Mat3::diag(0.05, 0.02, 0.04);
+    a.bodies.push_back(arm);
+    Body wheel;
+    wheel.parent = 0;
+    wheel.type = JointType::Revolute;
+    wheel.axis = {1, 0, 0};
+    wheel.joint_pos = {0, -0.4, 0.2};
+    wheel.mass = 10;
+    wheel.inertia = Mat3::diag(0.6, 0.3, 0.3);
+    a.bodies.push_back(wheel);
+    Body slider;
+    slider.parent = -1;
+    slider.type = JointType::Prismatic;
+    slider.axis = normalize(Vec3{0, 1, 0.3});
+    slider.joint_pos = {-0.2, 0.3, 0};
+    slider.mass = 6;
+    slider.com = {0.02, 0, 0};
+    slider.inertia = Mat3::diag(0.1, 0.1, 0.1);
+    a.bodies.push_back(slider);
+    a.updateKinematics();
+    return a;
+}
+}  // namespace
+
+TEST(aba_free_fall_keeps_joints_still) {
+    Articulated a = makeTree();
+    for (int i = 0; i < 1000; ++i) a.step(0.001);
+    Vec3 p = a.linearMomentum() / a.totalMass();
+    CHECK_RANGE(p.y, -9.82, -9.80);
+    CHECK_RANGE(std::fabs(p.x) + std::fabs(p.z), 0.0, 1e-9);
+    for (const Body& b : a.bodies) CHECK_RANGE(std::fabs(b.qd), 0.0, 1e-9);
+}
+
+// No gravity, joints driven by internal springs and torques, everything spinning: momentum and angular momentum
+// are conserved exactly by the physics, so the solver must hold them to round-off.
+TEST(aba_conserves_momentum_with_internal_forces) {
+    // Same 3 s of motion at two step sizes. A correct solver's drift is only integration error, so it halves when
+    // the step halves; a wrong force or inertia transform would leave a fixed error instead.
+    auto drift = [](double dt, double* dL, double* dE) {
+        Articulated a = makeTree();
+        a.gravity = {0, 0, 0};
+        a.base_vel = SVec{Vec3{0.7, -1.1, 2.3}, Vec3{0.5, 0.2, -0.4}};
+        a.bodies[0].qd = 3.0;
+        a.bodies[1].qd = 40.0;  // a fast-spinning wheel: strong gyroscopic coupling
+        a.bodies[2].qd = 0.5;
+        a.updateKinematics();
+        Vec3 p0 = a.linearMomentum(), L0 = a.angularMomentum();
+        double e0 = a.kineticEnergy();
+        int n = static_cast<int>(3.0 / dt + 0.5);
+        for (int i = 0; i < n; ++i) {
+            a.bodies[0].tau = -20.0 * a.bodies[0].q;  // conservative spring on the arm
+            a.bodies[2].tau = -400.0 * a.bodies[2].q;  // conservative spring on the slider
+            a.step(dt);
+        }
+        *dL = length(a.angularMomentum() - L0) / length(L0);
+        *dE = std::fabs(a.kineticEnergy() + 10.0 * a.bodies[0].q * a.bodies[0].q + 200.0 * a.bodies[2].q * a.bodies[2].q - e0) / e0;
+        return length(a.linearMomentum() - p0) / length(p0);
+    };
+    double l1, e1, l2, e2;
+    double p1 = drift(0.001, &l1, &e1), p2 = drift(0.0005, &l2, &e2);
+    if (g_verbose) std::printf("    dt 1 ms: dp %.2e dL %.2e dE %.2e   dt 0.5 ms: dp %.2e dL %.2e dE %.2e\n", p1, l1, e1, p2, l2, e2);
+    CHECK_RANGE(p1, 0.0, 0.02);
+    CHECK_RANGE(l1, 0.0, 0.02);
+    CHECK_RANGE(p2 / p1, 0.35, 0.65);  // first-order convergence
+    CHECK_RANGE(l2 / l1, 0.35, 0.65);
+}
+
+// A heavy base holding a point-like pendulum: small swings have period 2*pi*sqrt(L/g).
+TEST(aba_pendulum_period) {
+    Articulated a;
+    a.base_mass = 1e7;
+    a.base_inertia = Mat3::diag(1e7, 1e7, 1e7);
+    Body bob;
+    bob.type = JointType::Revolute;
+    bob.axis = {1, 0, 0};
+    bob.mass = 1.0;
+    bob.com = {0, -1.0, 0};
+    bob.inertia = Mat3::diag(1e-6, 1e-6, 1e-6);
+    bob.q = 0.05;
+    a.bodies.push_back(bob);
+    a.updateKinematics();
+    // Time two successive upward zero crossings of the joint angle.
+    double t = 0, first = -1, second = -1, prev = a.bodies[0].q;
+    for (int i = 0; i < 12000 && second < 0; ++i) {
+        // Hold the base up (otherwise everything free-falls together and the pendulum feels no gravity).
+        a.addForce(-1, Vec3{0, a.base_mass * kGravity, 0}, a.base_pos);
+        a.step(0.0005);
+        t += 0.0005;
+        double q = a.bodies[0].q;
+        if (prev < 0 && q >= 0) {
+            if (first < 0) first = t; else second = t;
+        }
+        prev = q;
+    }
+    double expected = 2 * kPi * std::sqrt(1.0 / kGravity);
+    CHECK_RANGE(second - first, expected * 0.995, expected * 1.005);
 }
 
 // Dev tool: `sim_tests --trace-lane [speed]` prints the rig's hub height along the obstacle lane.
