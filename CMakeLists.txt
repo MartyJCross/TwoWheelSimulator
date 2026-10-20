@@ -72,7 +72,7 @@ if(TWS_BUILD_GAME)
     game/render.cpp
     game/png.cpp)
   target_link_libraries(twowheel PRIVATE tws_sim tws_imgui SDL3::SDL3-static)
-  target_compile_definitions(twowheel PRIVATE TWS_VERSION="${PROJECT_VERSION}")
+  target_compile_definitions(twowheel PRIVATE TWS_VERSION="${PROJECT_VERSION}" _CRT_SECURE_NO_WARNINGS)
   if(MSVC)
     target_link_options(twowheel PRIVATE /INCREMENTAL:NO)
   endif()

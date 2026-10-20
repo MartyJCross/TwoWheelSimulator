@@ -51,8 +51,16 @@ See `docs/02_TECH_STACK.md` → Architecture. In short: `sim/` (physics), `game/
   `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`
   with `-G "Visual Studio 18 2026" -A x64 -B build`.
 - Dependencies come through CMake FetchContent, pinned by URL + SHA256 (the same approach as Crisp).
+- Build: `cmake --build build --config Release --parallel`. Exe: `build\Release	wowheel.exe`. Tests:
+  `build\Release\sim_tests.exe -v` (prints measured values). `sim_tests --trace-lane <speed>` prints the rig's
+  run along the obstacle lane (handy when tuning the tyre).
 - Run the tests before every push. Light testing only: no long benchmark runs while the owner is using the PC.
-- Windowed test runs go off-screen (no pop-ups on the owner's screen).
+- Windowed test runs go off-screen (no pop-ups on the owner's screen):
+  `twowheel.exe --position -4000,-4000 --screenshot <scratchpad>/x.png --frames N [--no-ui] [--cam yaw,pitch,dist]`.
+  Screenshot mode steps a fixed 1/60 s per frame, so a given frame count always shows the same moment.
+- Don't name a header after a C/C++ standard header (`sim/` is a public include dir: a `math.h` there broke `<cmath>`).
+- Bash heredocs turn `
+` inside C string literals into real newlines: edit C++ with the Write/Edit tools.
 
 ## 5. The owner and how they work
 
@@ -65,15 +73,26 @@ See `docs/02_TECH_STACK.md` → Architecture. In short: `sim/` (physics), `game/
 
 ## 6. Version
 
-Not started. When the first build exists: `project(TwoWheelSimulator VERSION x.y.z)` in `CMakeLists.txt`, shown in
-the window title. Bump it for every build handed over (patch for fixes, minor for features). Keep a `CHANGELOG.md`.
+`project(TwoWheelSimulator VERSION x.y.z)` in `CMakeLists.txt` is shown in the window title. Bump it for every build
+handed over (patch for fixes, minor for features) and add a `CHANGELOG.md` entry. CI (`.github/workflows/build.yml`)
+builds on every push and uploads the artifact `TwoWheelSimulator-windows-x64`; give the owner the run link.
 
 ## 7. Progress checklist
 
 - [x] Design docs (2026-10-20)
-- [ ] M0 Skeleton and wheel lab
+- [x] M0 Skeleton and wheel lab (v0.1.0, 2026-10-20)
 - [ ] M1 Rideable bike on hard ground
 - [ ] M2 Rigid obstacles + hard-enduro basics + rewind/restart
 - [ ] M3 Articulated rider
 - [ ] M4 Soft, deformable ground
 - [ ] M5 First demo (hard-enduro hill + wheelie challenge)
+
+### Where things stand (keep this current)
+
+- **The tyre** (`sim/tyre.*`): the carcass elements are independent radial springs, with no neighbour coupling yet.
+  Envelopment over sharp edges is therefore sharper than a real carcass, and rim strikes come a little easily on
+  edges. Add bending coupling between elements in M2 (obstacles), as the physics spec §1.2 describes.
+- **Rolling radius:** uses R_e = R0 - deflection/3, from the previous tick.
+- **The rig** is a quarter bike (load on a shock), not a rigid mass: a rigid 150 kg on a tyre bounces like a pogo
+  stick, which is real but useless for testing.
+- **Friction values** (`sim/terrain.cpp`) are first estimates. Tune them against feel once the bike rides (M1).
