@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 # The build number shown in the window title. Bump it for every build handed over.
-project(TwoWheelSimulator VERSION 0.1.0 LANGUAGES C CXX)
+project(TwoWheelSimulator VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -70,7 +70,8 @@ if(TWS_BUILD_GAME)
     game/main.cpp
     game/gl.cpp
     game/render.cpp
-    game/png.cpp)
+    game/png.cpp
+    game/pad.cpp)
   target_link_libraries(twowheel PRIVATE tws_sim tws_imgui SDL3::SDL3-static)
   target_compile_definitions(twowheel PRIVATE TWS_VERSION="${PROJECT_VERSION}" _CRT_SECURE_NO_WARNINGS)
   if(MSVC)

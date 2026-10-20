@@ -1,7 +1,7 @@
 // Two Wheel Simulator: M0 wheel lab. One wheel + flexible tyre on rigid ground, a free mode and a quarter-bike rig.
 //
 // Command line (all optional):
-//   --mode rig|free   --scene lane|flat   --speed <m/s>   --size <w>x<h>   --position <x>,<y>
+//   --mode rig|free   --scene lane|flat   --speed <m/s>   --drive <N*m>   --size <w>x<h>   --position <x>,<y>
 //   --screenshot <file.png> [--frames <n>]   renders n frames at a fixed 1/60 s each, saves, and exits
 //   --cam <yaw>,<pitch>,<dist>               --no-ui
 #include <SDL3/SDL.h>
@@ -19,6 +19,7 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl3.h"
+#include "pad.h"
 #include "png.h"
 #include "render.h"
 #include "wheel_lab.h"
@@ -31,6 +32,7 @@ struct Options {
     LabMode mode = LabMode::Rig;
     LabScene scene = LabScene::ObstacleLane;
     double speed = 4.0;
+    double drive = 0;
     int width = 1600, height = 900;
     bool hasPos = false;
     int posX = 0, posY = 0;
@@ -48,6 +50,7 @@ Options parseArgs(int argc, char** argv) {
         if (a == "--mode") o.mode = std::strcmp(next(), "free") == 0 ? LabMode::Free : LabMode::Rig;
         else if (a == "--scene") o.scene = std::strcmp(next(), "flat") == 0 ? LabScene::Flat : LabScene::ObstacleLane;
         else if (a == "--speed") o.speed = std::atof(next());
+        else if (a == "--drive") o.drive = std::atof(next());
         else if (a == "--size") std::sscanf(next(), "%dx%d", &o.width, &o.height);
         else if (a == "--position") o.hasPos = std::sscanf(next(), "%d,%d", &o.posX, &o.posY) == 2;
         else if (a == "--screenshot") o.screenshot = next();
@@ -143,6 +146,7 @@ int main(int argc, char** argv) {
     WheelLab lab;
     lab.setScene(opt.scene);
     lab.rig.speed = opt.speed;
+    lab.rig.drive_torque = opt.drive;
     double freeSpeed = opt.speed, freeLean = 4.0;
     lab.mode = opt.mode;
     resetLab(lab, freeSpeed, freeLean);
@@ -164,6 +168,10 @@ int main(int argc, char** argv) {
     History hist;
     int frame = 0;
     bool keyDrive = false, keyBrake = false;
+    Pad pad;
+    pad.openFirstAvailable();
+    Haptics haptics;
+    double frameDtForInput = 1.0 / 60.0;  // last frame's length, for rate-based controller input
 
     uint64_t lastCounter = SDL_GetPerformanceCounter();
     const double freq = (double)SDL_GetPerformanceFrequency();
@@ -176,6 +184,7 @@ int main(int argc, char** argv) {
         while (SDL_PollEvent(&ev)) {
             ImGui_ImplSDL3_ProcessEvent(&ev);
             if (ev.type == SDL_EVENT_QUIT) running = false;
+            pad.handleEvent(ev);
             ImGuiIO& io = ImGui::GetIO();
             if (ev.type == SDL_EVENT_KEY_DOWN && !io.WantCaptureKeyboard) {
                 switch (ev.key.key) {
@@ -201,10 +210,52 @@ int main(int argc, char** argv) {
             keyBrake = !cap && keys[SDL_SCANCODE_S];
         }
 
+        // --- Controller (wheel-lab layout; the bike layout in docs/04_CONTROLS.md arrives with the bike). ---
+        pad.update();
+        if (pad.connected()) {
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_START)) paused = !paused;
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_BACK)) showUi = !showUi;
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_NORTH)) { resetLab(lab, freeSpeed, freeLean); prevPos = lab.pos; haptics.reset(); }
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_EAST)) {
+                lab.mode = lab.mode == LabMode::Rig ? LabMode::Free : LabMode::Rig;
+                resetLab(lab, freeSpeed, freeLean);
+                prevPos = lab.pos;
+                haptics.reset();
+            }
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_WEST)) {
+                lab.setScene(lab.scene() == LabScene::ObstacleLane ? LabScene::Flat : LabScene::ObstacleLane);
+                buildTerrainMesh(lab.terrain, mb);
+                terrainMesh.upload(mb.v, mb.idx, false);
+                resetLab(lab, freeSpeed, freeLean);
+                prevPos = lab.pos;
+            }
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_SOUTH) && lab.mode == LabMode::Free) lab.applyImpulse({0, 45.0, 0}, lab.pos);
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) pressurePsi = std::max(3.0f, pressurePsi - 1.0f);
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) pressurePsi = std::min(30.0f, pressurePsi + 1.0f);
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_UP)) {
+                if (lab.mode == LabMode::Rig) lab.rig.speed = std::min(25.0, lab.rig.speed + 0.5);
+                else freeSpeed = std::min(20.0, freeSpeed + 0.5);
+            }
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_DOWN)) {
+                if (lab.mode == LabMode::Rig) lab.rig.speed = std::max(0.0, lab.rig.speed - 0.5);
+                else freeSpeed = std::max(0.0, freeSpeed - 0.5);
+            }
+            if (lab.mode == LabMode::Rig) {
+                // Bumpers lean the wheel (camber), 30 deg/s.
+                double lean = (pad.held(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER) ? 1.0 : 0.0) - (pad.held(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) ? 1.0 : 0.0);
+                lab.rig.camber_deg = std::clamp(lab.rig.camber_deg + lean * 30.0 * std::min(frameDtForInput, 0.1), -55.0, 55.0);
+            }
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_LEFT_STICK)) camDist = camDist > 3.0f ? 1.4f : (camDist > 1.8f ? 4.0f : 2.2f);
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_RIGHT_STICK)) { camYaw = 70; camPitch = 10; }
+            camYaw -= pad.rightX() * 150.0f * (float)std::min(frameDtForInput, 0.1);
+            camPitch = std::clamp(camPitch + pad.rightY() * 100.0f * (float)std::min(frameDtForInput, 0.1), -10.0f, 85.0f);
+        }
+
         uint64_t now = SDL_GetPerformanceCounter();
         double frameDt = (now - lastCounter) / freq;
         lastCounter = now;
         if (!opt.screenshot.empty()) frameDt = 1.0 / 60.0;  // deterministic screenshots
+        frameDtForInput = frameDt;
         fpsTimer += frameDt;
         ++fpsFrames;
         if (fpsTimer >= 0.5) {
@@ -219,6 +270,18 @@ int main(int argc, char** argv) {
         double freeDrive = lab.free_drive_torque, freeBrake = lab.free_brake_torque;
         if (keyDrive) { lab.rig.drive_torque = std::max(lab.rig.drive_torque, 300.0); lab.free_drive_torque = std::max(lab.free_drive_torque, 60.0); }
         if (keyBrake) { lab.rig.brake_torque = std::max(lab.rig.brake_torque, 800.0); lab.free_brake_torque = std::max(lab.free_brake_torque, 200.0); }
+        // Controller: analogue triggers add drive (RT) and brake (LT, squared for fine control near zero); the left
+        // stick steers the rig (slip angle) or pushes the free wheel sideways like a hand on the tyre.
+        double rigSlip = lab.rig.slip_deg;
+        const float rt = pad.rightTrigger(), lt = pad.leftTrigger();
+        if (rt > 0) { lab.rig.drive_torque = std::max(lab.rig.drive_torque, rt * 700.0); lab.free_drive_torque = std::max(lab.free_drive_torque, rt * 100.0); }
+        if (lt > 0) { lab.rig.brake_torque = std::max(lab.rig.brake_torque, lt * lt * 2500.0); lab.free_brake_torque = std::max(lab.free_brake_torque, lt * lt * 300.0); }
+        if (pad.leftX() != 0.0f) {
+            if (lab.mode == LabMode::Rig) lab.rig.slip_deg = std::clamp(lab.rig.slip_deg + pad.leftX() * 15.0, -30.0, 30.0);
+            else if (!paused) lab.applyImpulse(lab.carrier.rotate({-1, 0, 0}) * (pad.leftX() * 60.0 * std::min(frameDt, 0.1) * timeScale), lab.pos + Vec3{0, 0.25, 0});
+        }
+        const bool driving = keyDrive || rt > 0 || lab.rig.drive_torque > 0 || lab.free_drive_torque > 0;
+        const bool braking = keyBrake || lt > 0 || lab.rig.brake_torque > 0 || lab.free_brake_torque > 0;
         if (!paused) {
             accumulator += std::min(frameDt, 0.1) * timeScale;
             int ticks = 0;
@@ -241,6 +304,12 @@ int main(int argc, char** argv) {
         }
         lab.rig.drive_torque = rigDrive; lab.rig.brake_torque = rigBrake;
         lab.free_drive_torque = freeDrive; lab.free_brake_torque = freeBrake;
+        lab.rig.slip_deg = rigSlip;
+
+        // Haptics from what the tyre is doing this frame.
+        haptics.update(lab, paused ? 0.0 : std::min(frameDt, 0.1), driving, braking);
+        if (paused) pad.rumble(0, 0, 0, 0);
+        else pad.rumble(haptics.low, haptics.high, haptics.lt, haptics.rt);
         // Free wheel lost off the edge of the world: put it back.
         if (lab.mode == LabMode::Free && lab.pos.y < -3) { resetLab(lab, freeSpeed, freeLean); prevPos = lab.pos; }
 
@@ -358,6 +427,33 @@ int main(int argc, char** argv) {
             }
             ImGui::TextDisabled("Hold W = drive, S = brake");
 
+            ImGui::SeparatorText("Controller");
+            if (!pad.connected()) {
+                ImGui::TextDisabled("No controller found. Plug one in (USB or Bluetooth) at any time.");
+            } else {
+                ImGui::Text("%s  %s", pad.name().c_str(), pad.active() ? "(in use)" : "(press any button to use)");
+                ImGui::Checkbox("Haptics", &haptics.enabled);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(140);
+                ImGui::SliderFloat("Strength", &haptics.strength, 0.0f, 2.0f, "%.1f");
+                if (!pad.hasRumble()) ImGui::TextDisabled("This controller reports no rumble motors.");
+                ImGui::ProgressBar(haptics.low, ImVec2(95, 0), "heavy");
+                ImGui::SameLine();
+                ImGui::ProgressBar(haptics.high, ImVec2(95, 0), "light");
+                ImGui::SameLine();
+                ImGui::ProgressBar(haptics.lt, ImVec2(70, 0), "LT");
+                ImGui::SameLine();
+                ImGui::ProgressBar(haptics.rt, ImVec2(70, 0), "RT");
+                if (ImGui::TreeNode("Controller layout")) {
+                    ImGui::TextUnformatted("RT drive   LT brake   Left stick: steer (rig) / push (free)");
+                    ImGui::TextUnformatted("LB / RB lean (rig)   A hop (free)   B rig <-> free");
+                    ImGui::TextUnformatted("X obstacle lane <-> flat   Y reset   D-pad L/R pressure");
+                    ImGui::TextUnformatted("D-pad U/D speed   Right stick camera   L3 zoom   R3 camera reset");
+                    ImGui::TextUnformatted("Start pause   Back/View hide panels");
+                    ImGui::TreePop();
+                }
+            }
+
             ImGui::SeparatorText("Sim and view");
             ImGui::Checkbox("Pause (Space)", &paused);
             ImGui::SameLine();
@@ -458,11 +554,14 @@ int main(int argc, char** argv) {
             bool ok = writePng(opt.screenshot.c_str(), w, h, flipped.data());
             std::printf("%s %s (%dx%d), sim %.1f us/tick, renderer: %s\n", ok ? "Saved" : "FAILED to save",
                         opt.screenshot.c_str(), w, h, tickMicros, (const char*)glGetString(GL_RENDERER));
+            std::printf("controller: %s, haptics heavy %.2f light %.2f LT %.2f RT %.2f\n",
+                        pad.connected() ? pad.name().c_str() : "none", haptics.low, haptics.high, haptics.lt, haptics.rt);
             running = false;
         }
         SDL_GL_SwapWindow(window);
     }
 
+    pad.stopRumble();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
