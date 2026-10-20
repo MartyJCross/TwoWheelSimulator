@@ -48,7 +48,7 @@ Real specifications, no brands (made-up names, true-to-life numbers):
 | Class | Examples |
 |---|---|
 | Motorcycles | 300cc two-stroke enduro bike, 450cc four-stroke MX bike, 250cc four-stroke, 125cc two-stroke, trials bike |
-| Bicycles | Downhill bike (200 mm travel), enduro MTB, trail hardtail, dirt-jump bike, BMX |
+| Bicycles (after the motorbike game is solid) | Downhill bike (200 mm travel), enduro MTB, trail hardtail, dirt-jump bike, BMX |
 
 ## Quality of life (the list MX Simulator players wish they had)
 
@@ -66,6 +66,15 @@ Real specifications, no brands (made-up names, true-to-life numbers):
   (knobs biting, engine vibration, bottoming out).
 - **Track browser** inside the game, and a **track and terrain editor** that uses the same terrain the physics uses.
 - **Fast loading** and no forced menus: launch the game and you are riding in seconds.
+
+## Places and look
+
+- **Places:** for now there is **one demo map**: a stylised off-road park with jumps (tables, doubles, a step-up),
+  a hard-enduro section (rock garden, roots, log steps, a rock climb), a wheelie straight and open ground to play on.
+  Real or fictional venues are decided later.
+- **Look: stylised.** Clean shapes, flat-ish shading with soft lighting, strong readable colours per material (rock,
+  loam, mud, sand and roots must be easy to tell apart at speed), and light fog for depth. This also keeps the
+  renderer cheap on an integrated GPU. Ruts, roost and tyre marks are still drawn in detail, because they are gameplay.
 
 ## What this game is not
 

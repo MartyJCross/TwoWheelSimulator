@@ -5,7 +5,7 @@ The progress checklist lives in `CLAUDE.md` §7.
 
 ## M0: Skeleton and wheel lab
 
-- CMake project: `sim/` library, `game/` app (SDL3 + OpenGL 4.5 + Dear ImGui), `tests/` (doctest), GitHub Actions
+- CMake project: `sim/` library, `game/` app (SDL3 + OpenGL 3.3 + Dear ImGui), `tests/` (built-in runner), GitHub Actions
   (Windows build + tests + artifact; Linux sim tests).
 - A 3D debug renderer: grid, heightfield, wheel, tyre elements, force arrows, a free/orbit camera.
 - **One wheel** with the flexible tyre (§1 of the physics spec) on a rigid heightfield: drop it, roll it, push it
@@ -45,7 +45,9 @@ The progress checklist lives in `CLAUDE.md` §7.
 
 ## M5: First demo (hard enduro + wheelie)
 
-- One hard-enduro hill (a mix of rock garden, roots, a log step and a mud climb) with checkpoints and a timer.
+- **The demo map:** a stylised off-road park with jumps (table, double, step-up), a hard-enduro section (rock
+  garden, roots, log steps, a mud climb), a wheelie straight and open ground. Checkpoints and a timer on the enduro
+  section.
 - A wheelie challenge: distance plus a set course.
 - Replays (inputs + seed), a ghost of your best run, the telemetry overlay, a bike setup screen with explanations.
 - Sound: an engine sound driven by rpm and load, tyre/terrain sounds, impacts.
@@ -55,7 +57,7 @@ The progress checklist lives in `CLAUDE.md` §7.
 ## Later (order to be agreed)
 
 - **M6** More bikes (450cc four-stroke, 250cc four-stroke, 125cc two-stroke, trials bike) and an MX/SX track with deformable dirt.
-- **M7** Bicycles: DH, enduro, dirt jump; pedalling; a downhill track.
+- **M7** Bicycles (after the motorbike game is solid): DH, enduro, dirt jump; pedalling; a downhill track.
 - **M8** Track and terrain editor and an in-game track browser.
-- **M9** Online play (server-authoritative, as in Crisp) and leaderboards.
+- **M9** Online play (server-authoritative, as in Crisp) and leaderboards. Timing not decided; the architecture leaves room for it.
 - **M10** Freestyle, trials scoring, more venues, weather (wetness changes material grip).

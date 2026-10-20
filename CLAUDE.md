@@ -22,6 +22,10 @@ Hard enduro and wheelies come first; motocross, trials, downhill MTB and freesty
 | `docs/05_ROADMAP.md` | Milestones M0–M5 with a Definition of Done each, then later work |
 | `docs/OPEN_QUESTIONS.md` | The owner's answered decisions and the open questions |
 
+Owner decisions so far: **3D**, custom C++ engine, **hard enduro + wheelies first**, **motorbikes before bicycles**,
+a **stylised** look, **one demo map** with jumps and obstacles for now, and online play undecided but with room left
+for it.
+
 ## 2. Golden rules (do not break these)
 
 1. **The physics is never faked.** Grip, slides, wheelies, stalls, ruts, crashes and tricks come out of `sim/`. No
@@ -56,7 +60,8 @@ See `docs/02_TECH_STACK.md` → Architecture. In short: `sim/` (physics), `game/
 - They want **big work split into pieces, each committed and pushed** so progress survives if a session ends.
 - Short, plain reports: what changed, what to try, what was verified vs what only they can judge (feel, FPS).
 - `gh` is not installed; check CI with curl on `api.github.com/repos/MartyJCross/TwoWheelSimulator/actions/runs`.
-- Remote: `https://github.com/MartyJCross/TwoWheelSimulator`, branch `main`.
+- Remote: `https://MartyJCross@github.com/MartyJCross/TwoWheelSimulator.git`, branch `main`. The username has to be
+  in the URL; without it, `git push` hangs on a hidden credential prompt.
 
 ## 6. Version
 

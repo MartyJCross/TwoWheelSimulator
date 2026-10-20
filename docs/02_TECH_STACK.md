@@ -1,6 +1,6 @@
 # 02: Tech stack
 
-## Decision: custom C++20 engine (SDL3 + OpenGL 4.5)
+## Decision: custom C++20 engine (SDL3 + OpenGL 3.3 core)
 
 The owner asked for "whichever is most performant and reliable". For this game that is a small custom engine in C++,
 the same family as Crisp:
@@ -21,10 +21,10 @@ The cost is that we write our own tools (editor UI, debug views). **Dear ImGui**
 | Library | Use |
 |---|---|
 | **SDL3** (static) | Window, input, gamepad + rumble + gyro, audio output, timing |
-| **OpenGL 4.5 core** via **glad** | Rendering (supported by the Radeon Vega iGPU). One thin renderer layer, so Vulkan could be added later if ever needed. |
+| **OpenGL 3.3 core** via a tiny built-in loader (as in Crisp) | Rendering. 3.3 is the most reliable target on AMD's Windows drivers, and Crisp already proves it on the owner's laptop. One thin renderer layer, so a newer API could be added later if ever needed. |
 | **Dear ImGui** | Debug views, telemetry, setup screens, editor |
 | **stb_image / stb_vorbis** | Textures, sounds |
-| **doctest** | Unit and physics validation tests |
+| Tiny built-in test runner (as in Crisp) | Unit and physics validation tests (`tests/`), no dependency |
 | **Tracy** (optional, off by default) | Profiling |
 | **ENet** (later) | Online play, as in Crisp |
 
@@ -63,6 +63,15 @@ feeds the sim one `InputFrame` per tick. The sim owns everything that affects th
 - **Rendering:** as fast as the GPU allows (no 60 FPS cap), interpolating between the last two sim states.
 - **Input** is sampled every frame and the latest value is used for each tick. Analogue inputs are not smoothed in
   the sim; the rider's muscles do the smoothing, as in real life.
+
+## Room for online
+
+Online play is not scheduled yet, but the architecture keeps it possible:
+- `SimWorld` holds **any number of riders**, each with an id, and is stepped only by per-rider `InputFrame`s.
+  Nothing in `sim/` reads the keyboard, the clock or global state.
+- Full state save/restore exists for rewind anyway; the same snapshots work for server-authoritative correction.
+- Rider and vehicle state is plain data (no pointers into the renderer), so it can be serialised.
+- Deformed terrain changes are kept as a list of edits, so they could be sent over the network.
 
 ## Performance budget (owner's laptop: Ryzen 7 4800H, integrated Radeon)
 
