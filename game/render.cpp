@@ -393,13 +393,11 @@ void buildTerrainMesh(const tws::Terrain& t, MeshBuilder& out) {
     quad(gx1, gz0, far, gz1);
 }
 
-void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDrawOptions& opt, MeshBuilder& out) {
-    out.clear();
-    const tws::TyreParams& p = lab.params;
-    const tws::TyreState& s = lab.tyre;
+void buildWheel(const tws::TyreParams& p, const tws::TyreState& s, const Vec3& hubNow, const Quat& carrier,
+                double spinAngle, const Vec3& offset, bool contactColours, MeshBuilder& out) {
     const int nc = p.sections, nw = p.profile_points;
-    const Vec3 hub = lab.pos + offset;
-    const Vec3 axle = lab.carrier.rotate({1, 0, 0});
+    const Vec3 hub = hubNow + offset;
+    const Vec3 axle = carrier.rotate({1, 0, 0});
     auto P = [&](int i, int j) { return s.point[(size_t)(((i % nc) + nc) % nc) * nw + j] + offset; };
 
     // Tread surface.
@@ -413,7 +411,7 @@ void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDra
             if (tws::dot(n, P(i, j) - hub) < 0) n = -n;
             Vec3 col = rubber;
             size_t e = (size_t)i * nw + j;
-            if (opt.contact_colours && s.load[e] > 0) {
+            if (contactColours && s.load[e] > 0) {
                 double t = std::min(s.load[e] / (2.0 * p.pressure), 1.0);
                 col = s.sliding[e] ? Vec3{0.15, 0.75, 0.95} : tws::lerp(Vec3{0.98, 0.85, 0.15}, Vec3{0.95, 0.20, 0.10}, t);
             }
@@ -434,7 +432,7 @@ void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDra
         uint32_t sb = (uint32_t)out.v.size();
         for (int i = 0; i < nc; ++i) {
             double th = 2.0 * tws::kPi * i / nc;
-            Vec3 radial = lab.carrier.rotate({0, -std::cos(th), std::sin(th)});
+            Vec3 radial = carrier.rotate({0, -std::cos(th), std::sin(th)});
             Vec3 rimPt = hub + radial * p.rim_radius + axle * (sx * flange);
             Vec3 n = tws::normalize(axle * sx + radial * 0.3);
             out.vert(P(i, j), n, rubber);
@@ -453,13 +451,13 @@ void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDra
     }
 
     // Rim, hub and spokes turn with the wheel's spin angle.
-    const Quat spun = lab.carrier * Quat::axisAngle({1, 0, 0}, lab.spin_angle);
+    const Quat spun = carrier * Quat::axisAngle({1, 0, 0}, spinAngle);
     const Vec3 metal{0.72, 0.74, 0.78}, anodised{0.20, 0.35, 0.80};
     const int rimSeg = 48;
     for (int i = 0; i < rimSeg; ++i) {
         double t0 = 2.0 * tws::kPi * i / rimSeg, t1 = 2.0 * tws::kPi * (i + 1) / rimSeg;
-        Vec3 r0 = lab.carrier.rotate({0, -std::cos(t0), std::sin(t0)}) * (p.rim_radius - 0.01);
-        Vec3 r1 = lab.carrier.rotate({0, -std::cos(t1), std::sin(t1)}) * (p.rim_radius - 0.01);
+        Vec3 r0 = carrier.rotate({0, -std::cos(t0), std::sin(t0)}) * (p.rim_radius - 0.01);
+        Vec3 r1 = carrier.rotate({0, -std::cos(t1), std::sin(t1)}) * (p.rim_radius - 0.01);
         out.cylinder(hub + r0, hub + r1, 0.012, anodised, 6);
     }
     out.cylinder(hub - axle * 0.07, hub + axle * 0.07, 0.045, metal, 16);
@@ -471,7 +469,13 @@ void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDra
     }
     // A marker on the rim so spin is easy to see.
     out.box(hub + spun.rotate({0, -(p.rim_radius - 0.02), 0}), {0.02, 0.012, 0.03}, spun, {0.95, 0.55, 0.10});
+}
 
+void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDrawOptions& opt, MeshBuilder& out) {
+    out.clear();
+    buildWheel(lab.params, lab.tyre, lab.pos, lab.carrier, lab.spin_angle, offset, opt.contact_colours, out);
+    const Vec3 hub = lab.pos + offset;
+    const Vec3 axle = lab.carrier.rotate({1, 0, 0});
     if (lab.mode == tws::LabMode::Rig && opt.show_rig) {
         // Quarter-bike rig: fork legs from the axle up to the sprung load, plus the load itself.
         // Drawn 0.3 m higher than the sim's shock geometry so the load sits clear above the tyre.

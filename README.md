@@ -5,8 +5,9 @@ Think MX Simulator, but the tyres and the ground interact the way they really do
 bike and the rider's body, and it has quality-of-life features: instant restart, rewind, practice tools, replays and
 telemetry.
 
-**Status: M0, the wheel lab.** One wheel with the flexible tyre on rigid ground, so the tyre physics can be seen and
-tested before the bike is built on top of it. The design lives in [`docs/`](docs/).
+**Status: M1, the first rideable bike.** A 300cc two-stroke enduro bike on a test area with jumps, rollers, logs,
+a rock garden, a hill climb and a wheelie straight. The wheel lab from M0 is still there (F2). The design lives in
+[`docs/`](docs/).
 
 ## How to launch
 
@@ -31,7 +32,63 @@ Nothing needs installing. Close the game with **Esc** or the window's X.
 button on it to switch to it; touching the keyboard or mouse switches back. The **Controller** section of the panel
 shows its name, a haptics on/off switch, a strength slider and live meters for each motor.
 
-## Using the wheel lab
+## Riding (the default mode)
+
+You start on the test area, engine idling in 1st with the auto-clutch on: just open the throttle.
+
+- **Straight ahead:** a tabletop jump. **Left:** a double and the wheelie straight (rock stripes every 10 m).
+  **Right:** logs, wet roots, the rock garden, rollers and, far right, a loam hill climb.
+- Steering is **lean intent** by default: push the stick the way you want to lean and the rider countersteers for
+  you. Turn it off in the panel for raw bar torque (full sim).
+- **Wheelies:** sit back (right stick down), and either open the throttle hard in 1st/2nd or pull the clutch, rev
+  it and dump it. Hold it on the throttle; tap the rear brake to bring the nose down.
+- If you crash: **B** (or **T**) picks the bike up where it is; **View** (or **R**) goes back to the start.
+
+**Controller (MX profile, default):**
+
+| Input | Action |
+|---|---|
+| RT | Throttle |
+| LT | Front brake |
+| LB | Rear brake (ramps in while held) |
+| RB | Clutch (ramps in while held; the auto-clutch works on its own) |
+| Left stick X | Steer / lean |
+| Left stick Y | Stand tall (up) / crouch (down): pump, preload, absorb |
+| Right stick | Body: forward/back (wheelies, braking) and side to side |
+| A / X | Shift up / down (1-N-2-3-4-5-6; neutral is a half-click up from 1st when stopped) |
+| Y | Start the engine after a stall |
+| B | Pick the bike up |
+| D-pad left / right | Put a foot down (dab) |
+| D-pad up | Hide/show the panel |
+| R3 | Camera (chase, close, side, orbit) |
+| View | Back to the start |
+| Start | Pause |
+
+The **hard enduro profile** (choose it in the panel) moves the clutch to **LT** (analogue) and the front brake to RB.
+
+**Keyboard:**
+
+| Key | Action |
+|---|---|
+| W / S / Space | Throttle / front brake / rear brake |
+| A / D | Steer |
+| Left Shift | Clutch |
+| Arrow keys | Body forward/back and side to side |
+| Ctrl | Crouch |
+| E / Q | Shift up / down |
+| Enter | Start the engine |
+| Z / X | Dab left / right foot |
+| T / R | Pick the bike up / back to the start |
+| C | Camera |
+| P | Pause |
+| F1 / F2 / Esc | Panel / switch to the wheel lab / quit |
+| Right mouse drag, wheel | Look around, zoom |
+
+**Haptics** on the bike: the heavy motor carries bumps, landings, rim strikes and a light engine buzz; the light motor
+carries tyre sliding (wheelspin, front washing out, locked wheels); trigger rumble (Xbox pads) buzzes RT on rear
+wheelspin and LT on a sliding front.
+
+## The wheel lab (F2)
 
 **Two modes:**
 - **Quarter-bike rig:** a wheel carrying a load on a 30 cm-travel shock, pulled along the obstacle lane at a set speed:
@@ -46,7 +103,7 @@ shows its name, a haptics on/off switch, a strength slider and live meters for e
 - The **measurements** panel: forces, slip, deflection, patch area, elements sliding, rim strikes.
 - The green line is the total force from the ground; the pink one is its horizontal part (x4).
 
-**Controller (Xbox layout):**
+**Wheel lab controller (Xbox layout):**
 
 | Input | Action |
 |---|---|
@@ -70,7 +127,7 @@ shows its name, a haptics on/off switch, a strength slider and live meters for e
 - **Trigger rumble:** RT buzzes when the tyre spins under drive, and LT buzzes when it slides under the brake. This
   only works on controllers with impulse triggers (Xbox One/Series pads); the meters show the signal either way.
 
-**Keyboard and mouse:**
+**Wheel lab keyboard and mouse:**
 
 | Input | Action |
 |---|---|
@@ -82,7 +139,7 @@ shows its name, a haptics on/off switch, a strength slider and live meters for e
 | F1 | Hide the panels |
 | Esc | Quit |
 
-Command line (for testing): `--mode rig|free`, `--scene lane|flat`, `--speed <m/s>`, `--drive <N*m>`,
+Command line (for testing): `--lab`, `--ride-speed <m/s>`, `--ride-throttle <0..1>`, `--ride-cam <0..3>`, `--mode rig|free`, `--scene lane|flat`, `--speed <m/s>`, `--drive <N*m>`,
 `--size 1600x900`, `--position x,y`, `--cam yaw,pitch,dist`, `--no-ui`, `--screenshot out.png --frames N`.
 
 ## Building

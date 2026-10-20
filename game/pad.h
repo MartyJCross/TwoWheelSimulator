@@ -6,9 +6,6 @@
 
 #include <string>
 
-namespace tws {
-class WheelLab;
-}
 
 class Pad {
 public:
@@ -51,15 +48,29 @@ private:
     bool rumbling_ = false;
 };
 
-// Turns tyre/rig state into motor levels. Heavy motor: impacts and load changes (bumps, landings, rim strikes).
-// Light motor: tread sliding (wheelspin, lock-up, skids) and a little texture from rolling. Triggers: sliding under
-// throttle (right) or brake (left).
+// What the sim is doing this frame, in the terms haptics need. Filled by each game mode from sim state.
+struct HapticSignal {
+    double load = 0;        // total tyre normal load (N)
+    double rest_load = 1;   // the load at rest, to scale jolts
+    bool rim_strike = false;
+    double slide_rear = 0;  // fraction of tread elements sliding, 0..1 (lab: the one tyre)
+    double slide_front = 0;
+    double speed = 0;       // m/s
+    bool in_contact = false;
+    double rpm = 0;         // engine (0 = no engine)
+    bool driving = false;   // throttle / drive applied
+    bool braking = false;   // front brake (or the lab's brake)
+};
+
+// Turns sim signals into motor levels. Heavy motor: impacts and load changes (bumps, landings, rim strikes) and a
+// low engine buzz. Light motor: tread sliding (wheelspin, lock-up, skids) and a little texture from rolling.
+// Triggers: rear sliding under throttle (right), front sliding under the brake (left).
 struct Haptics {
     bool enabled = true;
     float strength = 1.0f;
     float low = 0, high = 0, lt = 0, rt = 0;  // last output, for the UI meters
 
-    void update(const tws::WheelLab& lab, double frameDt, bool driving, bool braking);
+    void update(const HapticSignal& s, double frameDt);
     void reset() { fzSlow_ = -1; rimTimer_ = 0; low = high = lt = rt = 0; }
 
 private:

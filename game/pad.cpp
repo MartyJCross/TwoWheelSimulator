@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "wheel_lab.h"
 
 namespace {
 
@@ -113,25 +112,20 @@ void Pad::stopRumble() {
     rumbling_ = false;
 }
 
-void Haptics::update(const tws::WheelLab& lab, double dt, bool driving, bool braking) {
-    const tws::TyreOutput& o = lab.out;
-    // Weight the tyre carries at rest; bumps are measured against it.
-    double restLoad = (lab.params.mass + (lab.mode == tws::LabMode::Rig ? lab.rig.load_kg : 0.0)) * tws::kGravity;
-    double fz = o.normal_load;
-    if (fzSlow_ < 0) fzSlow_ = fz;
-    fzSlow_ += (fz - fzSlow_) * std::min(1.0, dt / 0.08);  // ~80 ms average: what is left over is the jolt
-    double jolt = std::fabs(fz - fzSlow_) / restLoad;
-    if (o.rim_strike) rimTimer_ = 0.09;
+void Haptics::update(const HapticSignal& s, double dt) {
+    if (fzSlow_ < 0) fzSlow_ = s.load;
+    fzSlow_ += (s.load - fzSlow_) * std::min(1.0, dt / 0.08);  // ~80 ms average: what is left over is the jolt
+    double jolt = std::fabs(s.load - fzSlow_) / std::max(s.rest_load, 1.0);
+    if (s.rim_strike) rimTimer_ = 0.09;
     rimTimer_ = std::max(0.0, rimTimer_ - dt);
 
-    double slide = o.contacts > 0 ? (double)o.sliding / o.contacts : 0.0;
-    double speed = std::sqrt(lab.vel.x * lab.vel.x + lab.vel.z * lab.vel.z);
-    double rolling = o.contacts > 0 ? std::min(speed / 15.0, 1.0) * 0.06 : 0.0;  // faint texture while rolling
+    double rolling = s.in_contact ? std::min(s.speed / 15.0, 1.0) * 0.06 : 0.0;  // faint texture while rolling
+    double engine = s.rpm > 0 ? 0.03 + 0.06 * std::min(s.rpm / 10000.0, 1.0) : 0.0;  // the motor's buzz
 
-    double l = std::min(1.0, jolt * 0.9) + (rimTimer_ > 0 ? 0.85 : 0.0);
-    double h = slide * 0.85 + rolling;
+    double l = std::min(1.0, jolt * 0.9) + (rimTimer_ > 0 ? 0.85 : 0.0) + engine;
+    double h = std::max(s.slide_rear, s.slide_front) * 0.85 + rolling;
     low = enabled ? (float)std::min(1.0, l * strength) : 0.0f;
     high = enabled ? (float)std::min(1.0, h * strength) : 0.0f;
-    rt = enabled && driving ? (float)std::min(1.0, slide * 1.2 * strength) : 0.0f;
-    lt = enabled && braking ? (float)std::min(1.0, slide * 1.2 * strength) : 0.0f;
+    rt = enabled && s.driving ? (float)std::min(1.0, s.slide_rear * 1.2 * strength) : 0.0f;
+    lt = enabled && s.braking ? (float)std::min(1.0, s.slide_front * 1.2 * strength) : 0.0f;
 }

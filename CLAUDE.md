@@ -81,7 +81,7 @@ builds on every push and uploads the artifact `TwoWheelSimulator-windows-x64`; g
 
 - [x] Design docs (2026-10-20)
 - [x] M0 Skeleton and wheel lab (v0.1.0, 2026-10-20)
-- [ ] M1 Rideable bike on hard ground
+- [x] M1 Rideable bike on hard ground (v0.3.0, 2026-10-20)
 - [ ] M2 Rigid obstacles + hard-enduro basics + rewind/restart
 - [ ] M3 Articulated rider
 - [ ] M4 Soft, deformable ground
@@ -98,4 +98,19 @@ builds on every push and uploads the artifact `TwoWheelSimulator-windows-x64`; g
 - **Controller and haptics** (`game/pad.*`): the owner's GameSir shows up as "XInput Controller #1", which has no
   trigger rumble (XInput); body rumble works. Rumble only runs after a controller button press, so off-screen test
   runs never buzz the owner's pad. Screenshot runs print the haptic levels (heavy/light/LT/RT) for checking.
-- **Friction values** (`sim/terrain.cpp`) are first estimates. Tune them against feel once the bike rides (M1).
+- **Friction values** (`sim/terrain.cpp`) are first estimates (hardpack raised to 1.0/0.85 in M1). Tune by feel.
+- **The bike** (`sim/bike.*`) is an articulated multibody (`sim/articulated.*`, Featherstone ABA, body indices in
+  `Bike::kSteer..kRider`). The frame origin is the swingarm pivot; +X left, +Y up, +Z forward. The rider is a single
+  75 kg body on three muscle-driven sliders (the full articulated rider comes in M3). The lean-intent brain
+  (`Bike::steeringTorque`) is PID on lean through bar torque. Tests in `tests/tests.cpp` cover sag, straight running,
+  lean tracking, clutch-pop wheelie, 0-100 km/h and braking.
+- **Bike traps found in M1:**
+  - With a floating base, a pendulum test needs the base held up (everything free-falls together).
+  - Measure speed along the ground, not the pitched frame.
+  - The driveline's output side is a tiny inertia on a stiff spring and must be integrated implicitly.
+  - Soft rider "arms" let the 75 kg rider slide forward under braking, which caused stoppies: keep the fore/aft
+    muscles stiff.
+  - Throttle-only wheelies on hardpack are traction-limited (as in reality); the clutch pop is the real technique.
+- **Modes:** `game/main.cpp` owns the window, loop and controller; `game/ride_mode.cpp` and `game/lab_mode.cpp`
+  implement `GameMode` (`game/modes.h`). Screenshot runs for Ride: `--ride-speed 13 --ride-throttle 0.45
+  --ride-cam 2` (the cameras are 0 chase, 1 close, 2 side, 3 orbit).

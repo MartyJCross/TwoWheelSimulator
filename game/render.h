@@ -12,6 +12,9 @@
 namespace tws {
 class Terrain;
 class WheelLab;
+class Bike;
+struct TyreParams;
+struct TyreState;
 }
 
 struct Vtx {
@@ -82,3 +85,9 @@ struct WheelDrawOptions {
 };
 // `offset` shifts the drawn wheel (render interpolation of the hub between two sim states).
 void buildWheelMesh(const tws::WheelLab& lab, const tws::Vec3& offset, const WheelDrawOptions& opt, MeshBuilder& out);
+// One wheel + tyre (appends; doesn't clear). `hubNow` is the sim's hub, `offset` the render interpolation shift.
+void buildWheel(const tws::TyreParams& p, const tws::TyreState& s, const tws::Vec3& hubNow, const tws::Quat& carrier,
+                double spinAngle, const tws::Vec3& offset, bool contactColours, MeshBuilder& out);
+
+// The bike and rider (stylised), appended to `out`. `offset` = render interpolation shift.
+void buildBikeMesh(const tws::Bike& bike, const tws::Vec3& offset, bool contactColours, MeshBuilder& out);

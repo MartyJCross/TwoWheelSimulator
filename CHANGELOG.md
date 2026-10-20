@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.3.0: The first rideable bike (M1)
+
+- **Ride mode (the default):** a 300cc two-stroke enduro bike on a 160 m test area with a tabletop, a double,
+  rollers, logs, wet roots, a rock garden, a hill climb and a wheelie straight. Chase, close, side and orbit cameras.
+  A HUD (speed, gear, rpm, clutch) and a panel (assists, tyre pressures, controller profile, haptics, telemetry).
+- **The bike is a real multibody** (Featherstone articulated-body algorithm):
+  - Frame, steering, fork slider, front wheel, swingarm, rear wheel and the rider's mass, joined by exact joints.
+  - Gyroscopic effects, weight transfer, fork dive and anti-squat all come from the physics.
+- **Suspension:** a progressive fork and shock with preload, high/low-speed damping, stiction and bump stops.
+  The bike settles to 44 mm front and 102 mm rear sag.
+- **Drivetrain:**
+  - 300 two-stroke torque curve, crank and flywheel inertia, idle and limiter.
+  - Stalls (Y / Enter restarts it).
+  - Clutch that sticks or slips, plus an auto-clutch assist.
+  - 6 gears with neutral between 1st and 2nd.
+  - Chain forces on the swingarm and frame.
+- **Brakes** react through the fork and swingarm.
+- **The rider:** a 75 kg body the muscles move fore/aft, up/down and side to side. A "lean intent" brain
+  countersteers to hold the lean you ask for (full sim: raw bar torque). Auto-dab puts a foot down when stopped.
+  The full articulated rider comes in M3.
+- **Checked by tests:**
+  - holds the lean it's asked for (24 deg)
+  - clutch-pop wheelie
+  - 0-100 km/h in 4.9 s
+  - 50 km/h stop in 14 m at 0.7 g
+  - repeatability
+- **Controller:**
+  - MX and hard-enduro profiles.
+  - Haptics on the bike: bumps, landings, rim strikes, engine buzz, wheelspin and front slides.
+- Hardpack grip raised slightly (1.0 grip / 0.85 sliding) to match knobby-tyre data.
+
 ## v0.2.1: Fast-impact fixes, lower pressures
 
 - **Fixed: violent launches and spikes when anything fast happened.**

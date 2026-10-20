@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 # The build number shown in the window title. Bump it for every build handed over.
-project(TwoWheelSimulator VERSION 0.2.1 LANGUAGES C CXX)
+project(TwoWheelSimulator VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,7 +20,8 @@ add_library(tws_sim STATIC
   sim/tyre.cpp
   sim/wheel_lab.cpp
   sim/articulated.cpp
-  sim/bike.cpp)
+  sim/bike.cpp
+  sim/test_area.cpp)
 target_include_directories(tws_sim PUBLIC sim)
 if(MSVC)
   # /fp:precise (the default), never /fp:fast: the sim must be deterministic (MSVC does not contract to FMA by default).
@@ -73,7 +74,10 @@ if(TWS_BUILD_GAME)
     game/gl.cpp
     game/render.cpp
     game/png.cpp
-    game/pad.cpp)
+    game/pad.cpp
+    game/render_bike.cpp
+    game/lab_mode.cpp
+    game/ride_mode.cpp)
   target_link_libraries(twowheel PRIVATE tws_sim tws_imgui SDL3::SDL3-static)
   target_compile_definitions(twowheel PRIVATE TWS_VERSION="${PROJECT_VERSION}" _CRT_SECURE_NO_WARNINGS)
   if(MSVC)

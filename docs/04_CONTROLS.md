@@ -39,6 +39,13 @@ a clutch all give more real control.
 | **View / Back (hold 0.4 s)** | Instant restart |
 | **Start** | Pause / menu |
 
+### As built in M1 (v0.3.0)
+
+The layout above is the target. M1 implements it with these differences (the full rider and rewind arrive later):
+B picks the bike up (the sit/stand toggle comes with the M3 rider), View goes back to the start, D-pad up hides the
+panel, R3 cycles the camera, and rewind and checkpoints are not in yet (M2). See the README for the exact current
+mapping.
+
 ## Keyboard + mouse
 
 Supported but not the main target:
