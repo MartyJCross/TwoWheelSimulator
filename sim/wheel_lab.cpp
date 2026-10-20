@@ -24,6 +24,9 @@ void WheelLab::buildScene() {
     for (int k = 0; k <= terrain.nz(); ++k) {
         double z = terrain.z0() + k * cell;
         for (int i = 0; i <= terrain.nx(); ++i) {
+            // Features stay inside |x| <= 4 m so the grid edges meet the flat world outside without a seam.
+            double x = terrain.x0() + i * cell;
+            if (std::fabs(x) > 4.0) continue;
             // A 10 cm rock step up at z = 10 and back down at z = 13.
             if (z >= 10.0 - 1e-9 && z <= 13.0 + 1e-9) terrain.h(i, k) = 0.10f;
             if (z >= 9.9 && z <= 13.1) terrain.mat(i, k) = MaterialId::Rock;
@@ -35,8 +38,8 @@ void WheelLab::buildScene() {
         }
     }
     auto& obs = terrain.obstacles();
-    obs.push_back({Vec3{-6, 0.012, 17}, Vec3{6, 0.012, 17}, 0.035, MaterialId::WetRoot});  // root across the lane
-    obs.push_back({Vec3{-6, 0.11, 22}, Vec3{6, 0.11, 22}, 0.12, MaterialId::Wood});        // 24 cm log
+    obs.push_back({Vec3{-4, 0.012, 17}, Vec3{4, 0.012, 17}, 0.035, MaterialId::WetRoot});  // root across the lane
+    obs.push_back({Vec3{-4, 0.11, 22}, Vec3{4, 0.11, 22}, 0.12, MaterialId::Wood});        // 24 cm log
     obs.push_back({Vec3{0.25, 0.0, 27}, Vec3{0.25, 0.0, 27}, 0.28, MaterialId::Rock});     // rock, off-centre
 }
 
@@ -74,8 +77,8 @@ void WheelLab::resetRig() {
     out = TyreOutput{};
 }
 
-double WheelLab::applyBrake(double s, double brake, double inertia) const {
-    double dw = brake / inertia * kDt;
+double WheelLab::applyBrake(double s, double brake, double inertia, double dt) const {
+    double dw = brake / inertia * dt;
     if (std::fabs(s) <= dw) return 0.0;
     return s > 0 ? s - dw : s + dw;
 }
@@ -87,20 +90,24 @@ void WheelLab::applyImpulse(const Vec3& j, const Vec3& at) {
 }
 
 void WheelLab::step() {
-    if (mode == LabMode::Free)
-        stepFree();
-    else
-        stepRig();
+    // Rim strikes and deep compression put many very stiff springs on a light wheel. One 1 ms tick is then close to
+    // the explicit integrator's stability limit, so those ticks are split into substeps (most ticks cost one step).
+    const int n = (out.rim_strike || out.max_compression > 0.06) ? 4 : 1;
+    for (int i = 0; i < n; ++i) {
+        if (mode == LabMode::Free)
+            stepFree(kDt / n);
+        else
+            stepRig(kDt / n);
+    }
     time += kDt;
     ++ticks;
 }
 
-void WheelLab::stepRig() {
+void WheelLab::stepRig(double dt) {
     carrier = Quat::axisAngle({0, 1, 0}, deg2rad(rig.slip_deg)) * Quat::axisAngle({0, 0, 1}, deg2rad(rig.camber_deg));
     vel.x = 0;
-    vel.z = rig.speed;
     WheelKinematics k{pos, carrier, vel, Vec3{}, spin};
-    out = tyreStep(params, tyre, k, terrain, kDt, scratch_);
+    out = tyreStep(params, tyre, k, terrain, dt, scratch_);
 
     const Vec3 axle = carrier.rotate({1, 0, 0});
     // Vertical: the load rides on a shock above the hub. Spring rate from the sag; stiff, damped stops at both ends.
@@ -114,17 +121,24 @@ void WheelLab::stepRig() {
     const double kStop = 2.0e6, cStop = 2.0e4;
     if (ext > rig.travel) fs -= kStop * (ext - rig.travel) + cStop * extRate;
     if (ext < 0) fs += kStop * (-ext) - cStop * extRate;
-    vel.y += ((out.force.y - fs) / params.mass - kGravity) * kDt;
-    pos.y += vel.y * kDt;
-    sprung_vy += (fs / ms - kGravity) * kDt;
-    sprung_y += sprung_vy * kDt;
+    vel.y += ((out.force.y - fs) / params.mass - kGravity) * dt;
+    pos.y += vel.y * dt;
+    sprung_vy += (fs / ms - kGravity) * dt;
+    sprung_y += sprung_vy * dt;
     // Spin: tyre torque about the axle + drive, then the brake.
-    double s = spin + (dot(out.torque, axle) + rig.drive_torque) / params.inertia_axle * kDt;
-    spin = applyBrake(s, rig.brake_torque, params.inertia_axle);
-    spin_angle += spin * kDt;
+    double s = spin + (dot(out.torque, axle) + rig.drive_torque) / params.inertia_axle * dt;
+    spin = applyBrake(s, rig.brake_torque, params.inertia_axle, dt);
+    spin_angle += spin * dt;
     // Carriage.
-    rig_z += rig.speed * kDt;
+    // Carriage: the whole quarter bike has momentum along the lane and is towed toward the set speed by a limited
+    // force (up to 1 g), so a hard hit slows it the way it would slow a real bike. (A carriage that held its speed
+    // with unlimited force flung the wheel straight up off a log at speed.)
+    const double mTotal = params.mass + std::max(rig.load_kg, 1.0);
+    double tow = clampd(mTotal * (rig.speed - vel.z) / 0.25, -mTotal * kGravity, mTotal * kGravity);
+    vel.z += (out.force.z + tow) / mTotal * dt;
+    rig_z += vel.z * dt;
     if (rig_z >= lane_length_) rig_z -= lane_length_;
+    if (rig_z < -2.0) rig_z += lane_length_;
     pos.x = 0;
     pos.z = rig_z;
 
@@ -140,7 +154,7 @@ void WheelLab::stepRig() {
     measure.deflection = params.outer_radius - (pos.y - terrain.heightAt(pos.x, pos.z));
 }
 
-void WheelLab::stepFree() {
+void WheelLab::stepFree(double dt) {
     const double ia = params.inertia_axle, it = params.inertia_transverse;
     auto invInertia = [&](const Vec3& axle, const Vec3& v) {
         return v / it + axle * (dot(axle, v) * (1.0 / ia - 1.0 / it));
@@ -151,22 +165,22 @@ void WheelLab::stepFree() {
     Vec3 carrierOmega = omega - axle * spin;
 
     WheelKinematics k{pos, carrier, vel, carrierOmega, spin};
-    out = tyreStep(params, tyre, k, terrain, kDt, scratch_);
+    out = tyreStep(params, tyre, k, terrain, dt, scratch_);
 
-    vel += (out.force / params.mass + Vec3{0, -kGravity, 0}) * kDt;
-    pos += vel * kDt;
-    ang_momentum += (out.torque + axle * free_drive_torque) * kDt;
+    vel += (out.force / params.mass + Vec3{0, -kGravity, 0}) * dt;
+    pos += vel * dt;
+    ang_momentum += (out.torque + axle * free_drive_torque) * dt;
 
     // Brake about the axle (lab only: it reacts against nothing).
     omega = invInertia(axle, ang_momentum);
     double s = dot(omega, axle);
-    double sb = applyBrake(s, free_brake_torque, ia);
+    double sb = applyBrake(s, free_brake_torque, ia, dt);
     ang_momentum += axle * (ia * (sb - s));
 
     omega = invInertia(axle, ang_momentum);
     spin = dot(omega, axle);
-    carrier = carrier.integrated(omega - axle * spin, kDt);
-    spin_angle += spin * kDt;
+    carrier = carrier.integrated(omega - axle * spin, dt);
+    spin_angle += spin * dt;
 
     measure = LabMeasure{};
     measure.fz = out.force.y;

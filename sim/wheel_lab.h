@@ -85,9 +85,9 @@ public:
 
 private:
     void buildScene();
-    void stepFree();
-    void stepRig();
-    double applyBrake(double spinNew, double brakeTorque, double inertia) const;
+    void stepFree(double dt);
+    void stepRig(double dt);
+    double applyBrake(double spinNew, double brakeTorque, double inertia, double dt) const;
 
     LabScene scene_ = LabScene::ObstacleLane;
     double lane_length_ = 40.0;

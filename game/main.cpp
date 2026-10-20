@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
                 prevPos = lab.pos;
             }
             if (pad.pressed(SDL_GAMEPAD_BUTTON_SOUTH) && lab.mode == LabMode::Free) lab.applyImpulse({0, 45.0, 0}, lab.pos);
-            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) pressurePsi = std::max(3.0f, pressurePsi - 1.0f);
+            if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) pressurePsi = std::max(0.0f, pressurePsi - 1.0f);
             if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) pressurePsi = std::min(30.0f, pressurePsi + 1.0f);
             if (pad.pressed(SDL_GAMEPAD_BUTTON_DPAD_UP)) {
                 if (lab.mode == LabMode::Rig) lab.rig.speed = std::min(25.0, lab.rig.speed + 0.5);
@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
         if (paused) pad.rumble(0, 0, 0, 0);
         else pad.rumble(haptics.low, haptics.high, haptics.lt, haptics.rt);
         // Free wheel lost off the edge of the world: put it back.
-        if (lab.mode == LabMode::Free && lab.pos.y < -3) { resetLab(lab, freeSpeed, freeLean); prevPos = lab.pos; }
+        if (lab.mode == LabMode::Free && (lab.pos.y < -3 || std::fabs(lab.pos.x) > 1000 || std::fabs(lab.pos.z) > 1000)) { resetLab(lab, freeSpeed, freeLean); prevPos = lab.pos; }
 
         // Interpolate the hub between the last two ticks (a wrap of the rig lane snaps instead).
         double alpha = paused ? 1.0 : std::clamp(accumulator / WheelLab::kDt, 0.0, 1.0);
@@ -390,9 +390,13 @@ int main(int argc, char** argv) {
             }
 
             ImGui::SeparatorText("Tyre");
-            ImGui::SliderFloat("Pressure (psi)", &pressurePsi, 3.0f, 30.0f, "%.1f");
+            ImGui::SliderFloat("Pressure (psi)", &pressurePsi, 0.0f, 30.0f, "%.1f");
             ImGui::SameLine();
             ImGui::TextDisabled("%.2f bar", pressurePsi * 0.0689476);
+            if (pressurePsi < 0.5f)
+                ImGui::TextColored(ImVec4(1, 0.5f, 0.3f, 1), "Flat tyre: only the carcass holds it up");
+            else if (pressurePsi < 7.0f)
+                ImGui::TextDisabled("Hard-enduro low: huge grip on rock, rim strikes come easily");
 
             if (lab.mode == LabMode::Rig) {
                 ImGui::SeparatorText("Rig");

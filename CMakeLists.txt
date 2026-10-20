@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 # The build number shown in the window title. Bump it for every build handed over.
-project(TwoWheelSimulator VERSION 0.2.0 LANGUAGES C CXX)
+project(TwoWheelSimulator VERSION 0.2.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

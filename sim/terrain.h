@@ -51,7 +51,7 @@ public:
     MaterialId& mat(int i, int k) { return mats_[static_cast<size_t>(k) * (nx_ + 1) + i]; }
     MaterialId mat(int i, int k) const { return mats_[static_cast<size_t>(k) * (nx_ + 1) + i]; }
 
-    // Bilinear height and its gradient-based normal. Outside the grid the edge value is used.
+    // Bilinear height and its gradient-based normal. Outside the grid: flat hardpack at height 0.
     double heightAt(double x, double z) const;
     double heightAt(double x, double z, Vec3* normal) const;
     MaterialId materialAt(double x, double z) const;

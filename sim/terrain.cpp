@@ -29,6 +29,11 @@ void Terrain::init(double x0, double z0, double cell, int nx, int nz, MaterialId
 double Terrain::heightAt(double x, double z) const { return heightAt(x, z, nullptr); }
 
 double Terrain::heightAt(double x, double z, Vec3* normal) const {
+    // Outside the grid the world is flat hardpack at height 0 (grid edges are kept at 0 so there is no seam).
+    if (x < x0_ || z < z0_ || x > x0_ + nx_ * cell_ || z > z0_ + nz_ * cell_) {
+        if (normal) *normal = Vec3{0, 1, 0};
+        return 0.0;
+    }
     double fx = clampd((x - x0_) / cell_, 0.0, nx_ - 1e-9);
     double fz = clampd((z - z0_) / cell_, 0.0, nz_ - 1e-9);
     int i = static_cast<int>(fx);
@@ -46,6 +51,7 @@ double Terrain::heightAt(double x, double z, Vec3* normal) const {
 }
 
 MaterialId Terrain::materialAt(double x, double z) const {
+    if (x < x0_ || z < z0_ || x > x0_ + nx_ * cell_ || z > z0_ + nz_ * cell_) return MaterialId::Hardpack;
     int i = static_cast<int>(clampd(std::floor((x - x0_) / cell_ + 0.5), 0, nx_));
     int k = static_cast<int>(clampd(std::floor((z - z0_) / cell_ + 0.5), 0, nz_));
     return mat(i, k);

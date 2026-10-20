@@ -375,6 +375,22 @@ void buildTerrainMesh(const tws::Terrain& t, MeshBuilder& out) {
             out.tri(b, d, e);
         }
     for (const tws::Capsule& o : t.obstacles()) out.capsule(o.a, o.b, o.radius, matColour(o.mat), 24);
+    // The flat world beyond the grid: four big quads around it, out to 1.5 km (fog hides the edge).
+    const double far = 1500.0;
+    const double gx0 = t.x0(), gx1 = t.x0() + nx * c, gz0 = t.z0(), gz1 = t.z0() + nz * c;
+    const Vec3 up{0, 1, 0}, base = matColour(tws::MaterialId::Hardpack) * 0.98;
+    auto quad = [&](double xa, double za, double xb, double zb) {
+        uint32_t k = out.vert({xa, 0, za}, up, base);
+        out.vert({xb, 0, za}, up, base);
+        out.vert({xb, 0, zb}, up, base);
+        out.vert({xa, 0, zb}, up, base);
+        out.tri(k, k + 1, k + 2);
+        out.tri(k, k + 2, k + 3);
+    };
+    quad(-far, -far, far, gz0);
+    quad(-far, gz1, far, far);
+    quad(-far, gz0, gx0, gz1);
+    quad(gx1, gz0, far, gz1);
 }
 
 void buildWheelMesh(const tws::WheelLab& lab, const Vec3& offset, const WheelDrawOptions& opt, MeshBuilder& out) {

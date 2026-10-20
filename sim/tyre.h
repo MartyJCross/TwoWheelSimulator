@@ -34,7 +34,8 @@ struct TyreParams {
     double contact_ramp = 0.002;     // m: pressure force builds over the first 2 mm (smooths entry into contact)
     double damp_compress = 1.8e4;    // N*s/m per m^2 (hysteresis: more damping in compression -> rolling resistance)
     double damp_rebound = 0.6e4;     // N*s/m per m^2
-    double rim_k = 5.0e8;            // N/m per m^2 once the rim bottoms through the tyre
+    double damp_depth = 0.006;       // m: damping reaches full strength at this compression (Hunt-Crossley)
+    double rim_k = 2.0e8;            // N/m per m^2 once the rim bottoms through the tyre
     double rim_damp = 3.0e6;         // N*s/m per m^2: a pinched tyre soaks up the hit instead of springing back
 
     // Tread bristles (brush model). Longitudinal stiffer than lateral, as on real knobbies.

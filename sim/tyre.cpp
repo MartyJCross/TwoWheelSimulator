@@ -108,14 +108,20 @@ TyreOutput tyreStep(const TyreParams& p, TyreState& s, const WheelKinematics& k,
             }
 
             double t = std::min(comp / p.contact_ramp, 1.0);
-            double fn = p.pressure * area * t * t * (3 - 2 * t) + p.carcass_k * area * comp +
-                        (compRate > 0 ? p.damp_compress : p.damp_rebound) * area * compRate;
+            double spring = p.pressure * area * t * t * (3 - 2 * t) + p.carcass_k * area * comp;
+            // Hunt-Crossley-style damping: it grows with compression, so a fast hit starts soft instead of producing
+            // a huge force the instant the tread touches. It is also capped at the elastic force (rubber can't push
+            // back harder than it is squeezed), which keeps very fast impacts physical.
+            double damp = (compRate > 0 ? p.damp_compress : p.damp_rebound) * area * compRate *
+                          std::min(comp / p.damp_depth, 1.0);
             double bottom = std::max(profileRadius(p, j) - p.rim_radius - p.bottom_margin, 0.01);
             if (comp > bottom) {
-                fn += p.rim_k * area * (comp - bottom) + p.rim_damp * area * compRate;
+                double pinch = comp - bottom;
+                spring += p.rim_k * area * pinch;
+                damp += p.rim_damp * area * compRate * std::min(pinch / p.damp_depth, 1.0);
                 out.rim_strike = true;
             }
-            fn = std::max(fn, 0.0);
+            double fn = std::max(spring + std::clamp(damp, -spring, spring), 0.0);
 
             // Ground-plane basis: lateral follows the axle, longitudinal the wheel's heading.
             Vec3 lat0 = axle - n * dot(axle, n);

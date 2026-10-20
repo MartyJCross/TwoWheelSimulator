@@ -214,7 +214,7 @@ TEST(free_wheel_drop_settles) {
         if (touched) maxAfter = std::max(maxAfter, lab.pos.y);
     }
     CHECK_RANGE(minY, 0.26, 0.33);         // compresses the tyre on impact but never reaches through it
-    CHECK_RANGE(maxAfter, 0.337, 0.55);    // bounces, but lower than it was dropped from (energy is lost)
+    CHECK_RANGE(maxAfter, 0.337, 0.60);    // bounces, but lower than it was dropped from (0.637 m: energy is lost)
 }
 
 // A rolling wheel is self-stable (gyroscopic + camber thrust): it rolls on upright-ish for seconds.
@@ -251,6 +251,24 @@ TEST(rig_obstacle_lane_is_stable) {
     CHECK_RANGE(maxY, 0.45, 0.9);  // it climbed the step, log and rock without being launched
 }
 
+// Very low and zero pressure: the rig still runs the whole lane without blowing up (lots of rim strikes, though).
+TEST(rig_low_pressure_is_stable) {
+    for (double psi : {0.0, 3.0, 6.0}) {
+        WheelLab lab;
+        lab.params.pressure = psi * 6894.76;
+        lab.rig.speed = 8.0;
+        lab.resetRig();
+        double maxY = 0;
+        for (int i = 0; i < 5000; ++i) {
+            lab.step();
+            maxY = std::max(maxY, lab.pos.y);
+        }
+        if (g_verbose) std::printf("    %.0f psi: max hub %.3f m\n", psi, maxY);
+        CHECK(std::isfinite(lab.pos.y));
+        CHECK_RANGE(maxY, 0.2, 0.9);
+    }
+}
+
 TEST(determinism_same_inputs_same_state) {
     auto runOnce = [] {
         WheelLab lab;
@@ -279,7 +297,52 @@ static void traceLane(double speed) {
     }
 }
 
+// Dev tool: `sim_tests --stress` runs the rig and the free wheel fast over the lane and reports the worst moments.
+static void stress() {
+    const double speeds[] = {4, 8, 12, 16, 20, 25};
+    for (double v : speeds) {
+        WheelLab lab;
+        lab.rig.speed = v;
+        lab.resetRig();
+        double maxY = 0, maxF = 0, maxJump = 0, maxSpin = 0, maxSlipVel = 0;
+        double lastF = 0;
+        int n = static_cast<int>(40.0 / v * WheelLab::kTickHz);
+        for (int i = 0; i < n; ++i) {
+            lab.step();
+            double f = length(lab.out.force);
+            maxY = std::max(maxY, lab.pos.y);
+            maxF = std::max(maxF, f);
+            maxJump = std::max(maxJump, std::fabs(f - lastF));
+            maxSpin = std::max(maxSpin, std::fabs(lab.spin * lab.params.outer_radius - v));
+            lastF = f;
+            (void)maxSlipVel;
+        }
+        std::printf("rig %4.0f m/s: max hub %.2f m, max force %6.0f N, max force jump/tick %6.0f N, max |wheel surface speed - v| %.1f m/s, finite %d\n",
+                    v, maxY, maxF, maxJump, maxSpin, std::isfinite(lab.pos.y) ? 1 : 0);
+    }
+    for (double v : speeds) {
+        WheelLab lab;
+        lab.resetFree({0, 0.34, 1.0}, v, 0.0);
+        double maxY = 0, maxF = 0, maxAng = 0;
+        int n = static_cast<int>(6.0 * WheelLab::kTickHz);
+        for (int i = 0; i < n; ++i) {
+            lab.step();
+            maxY = std::max(maxY, lab.pos.y);
+            maxF = std::max(maxF, length(lab.out.force));
+            Vec3 axle = lab.carrier.rotate({1, 0, 0});
+            maxAng = std::max(maxAng, std::fabs(rad2deg(std::asin(clampd(axle.y, -1, 1)))));
+        }
+        std::printf("free %4.0f m/s: max hub %.2f m, max force %6.0f N, max lean %.0f deg, end z %.1f, finite %d\n", v,
+                    maxY, maxF, maxAng, lab.pos.z, std::isfinite(lab.pos.y) ? 1 : 0);
+    }
+}
+
 int main(int argc, char** argv) {
+    for (int i = 1; i < argc; ++i)
+        if (std::strcmp(argv[i], "--stress") == 0) {
+            stress();
+            return 0;
+        }
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "-v") == 0) g_verbose = true;
         if (std::strcmp(argv[i], "--trace-lane") == 0) {

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.1: Fast-impact fixes, lower pressures
+
+- **Fixed: violent launches and spikes when anything fast happened.**
+  - Tyre damping now builds with compression (Hunt-Crossley) and is capped at the elastic force. Before, a fast hit
+    produced a huge force the instant the tread touched.
+  - Rim strikes run in four substeps: about 100 bottomed-out elements on a 13 kg wheel was at the edge of what one
+    1 ms tick can handle, and the wheel could gain energy and be flung.
+  - The rig carriage now has real momentum and a limited tow force. It used to hold its speed with unlimited force,
+    which threw the wheel straight up off the log at speed.
+  - Result: at 20 m/s into the log the hub now peaks at 0.59 m (was 1.6 m), and peak forces dropped by about 3x.
+- Tyre pressure goes down to **0 psi** (a flat tyre: only the carcass holds it up). The panel warns below 7 psi.
+- The world beyond the test area is endless flat ground, so a fast free wheel no longer rolls off the edge.
+- New dev tool: `sim_tests --stress` (rig and free wheel at 4-25 m/s, worst-case forces).
+
 ## v0.2.0: Controller and haptics
 
 - **Controller support (SDL3; Xbox layout, GameSir tested as XInput):**
