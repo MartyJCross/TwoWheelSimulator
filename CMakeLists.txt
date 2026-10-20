@@ -19,7 +19,8 @@ add_library(tws_sim STATIC
   sim/terrain.cpp
   sim/tyre.cpp
   sim/wheel_lab.cpp
-  sim/articulated.cpp)
+  sim/articulated.cpp
+  sim/bike.cpp)
 target_include_directories(tws_sim PUBLIC sim)
 if(MSVC)
   # /fp:precise (the default), never /fp:fast: the sim must be deterministic (MSVC does not contract to FMA by default).

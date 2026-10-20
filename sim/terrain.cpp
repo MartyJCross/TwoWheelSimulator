@@ -6,7 +6,7 @@ namespace tws {
 
 const Material& material(MaterialId id) {
     static const Material table[] = {
-        {"Hardpack", 0.95, 0.80, 0.6, 0.78f, 0.62f, 0.42f},
+        {"Hardpack", 1.00, 0.85, 0.6, 0.78f, 0.62f, 0.42f},
         {"Loam", 1.00, 0.85, 0.6, 0.45f, 0.33f, 0.24f},
         {"Rock", 1.00, 0.85, 0.5, 0.62f, 0.62f, 0.66f},
         {"Wet root", 0.35, 0.25, 0.4, 0.52f, 0.34f, 0.20f},

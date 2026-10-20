@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "articulated.h"
+#include "bike.h"
 #include "wheel_lab.h"
 
 using namespace tws;
@@ -140,7 +141,7 @@ TEST(tyre_locked_wheel_slides_at_kinetic_friction) {
     run(lab, 0.5);
     CHECK(lab.spin == 0.0);
     LabMeasure m = average(lab, 0.5);
-    CHECK_RANGE(-m.fx / m.fz, 0.72, 0.85);
+    CHECK_RANGE(-m.fx / m.fz, 0.78, 0.90);
 }
 
 // Strong drive torque: wheelspin, force capped by friction; a moderate one: small slip, no spin-up.
@@ -157,7 +158,7 @@ TEST(tyre_drive_traction) {
     run(spinning, 1.0);
     LabMeasure s = average(spinning, 0.3);
     CHECK_RANGE(s.slip_ratio, 0.5, 1e9);
-    CHECK_RANGE(s.fx / s.fz, 0.70, 0.97);
+    CHECK_RANGE(s.fx / s.fz, 0.75, 1.0);
 }
 
 // Slip angle: lateral force builds roughly linearly at small angles and saturates near friction at large ones.
@@ -397,6 +398,171 @@ TEST(aba_pendulum_period) {
     }
     double expected = 2 * kPi * std::sqrt(1.0 / kGravity);
     CHECK_RANGE(second - first, expected * 0.995, expected * 1.005);
+}
+
+// --- Bike -----------------------------------------------------------------------------------------------------
+
+namespace {
+Terrain flatGround() {
+    Terrain t;
+    t.init(-5, -5, 0.25, 40, 40, MaterialId::Hardpack);  // outside the grid is flat hardpack too
+    return t;
+}
+
+void ride(Bike& b, const Terrain& t, const BikeInput& in, double seconds, bool trace = false) {
+    int n = static_cast<int>(seconds * 1000 + 0.5);
+    for (int i = 0; i < n; ++i) {
+        b.step(t, in, 0.001);
+        if (trace && i % 100 == 0) {
+            const Telemetry& m = b.tele;
+            std::printf("    t %5.2f v %5.2f lean %6.1f pitch %5.1f steer %6.1f rpm %5.0f g%d clutch %.2f%s fork %.3f shock %.3f Ff %5.0f Fr %5.0f%s\n",
+                        i / 1000.0, m.speed, m.lean_deg, m.pitch_deg, m.steer_deg, m.rpm, m.gear, m.clutch_engaged,
+                        m.clutch_slipping ? "s" : " ", m.fork_travel, m.shock_travel, m.front_load, m.rear_load,
+                        m.crashed ? " CRASHED" : "");
+        }
+    }
+}
+}  // namespace
+
+TEST(bike_settles_at_rest_with_sag) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    ride(b, t, BikeInput{}, 3.0, g_verbose);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(std::fabs(b.tele.lean_deg), 0.0, 15.0);
+    CHECK_RANGE(b.tele.fork_travel, 0.03, 0.12);   // front static sag with rider
+    CHECK_RANGE(b.tele.shock_travel, 0.07, 0.15);  // rear "race sag" ~1/3 of travel
+    CHECK_RANGE(b.tele.front_load + b.tele.rear_load, 1600, 2000);  // ~187 kg bike + rider
+}
+
+TEST(bike_rides_straight_hands_off_the_stick) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    b.setRolling(10.0);
+    BikeInput in;
+    in.throttle = 0.25;
+    ride(b, t, in, 6.0, g_verbose);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(std::fabs(b.tele.lean_deg), 0.0, 5.0);
+    CHECK_RANGE(b.tele.speed, 6.0, 20.0);
+    CHECK_RANGE(std::fabs(b.position().x), 0.0, 3.0);  // still going straight
+}
+
+TEST(bike_holds_the_lean_it_is_asked_for) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    b.setRolling(10.0);
+    BikeInput in;
+    in.throttle = 0.3;
+    ride(b, t, in, 1.0);
+    in.steer = 0.5;  // half right: ~24 deg
+    ride(b, t, in, 4.0, g_verbose);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(b.tele.lean_deg, 14.0, 34.0);
+    CHECK_RANGE(b.position().x, -1e9, -2.0);  // turned right (toward -X)
+}
+
+// The real technique: rolling slowly in first, pull the clutch, rev it, sit back and dump the clutch. The front
+// comes up from the clutch's torque spike and the crank's stored energy; nothing is scripted. Throttle alone at a
+// steady pull only makes the front go light (as on a real 300 on dirt).
+TEST(bike_clutch_pop_wheelie) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    b.setRolling(3.0);
+    BikeInput in;
+    in.body_fore = -0.8;
+    in.clutch = 1.0;
+    in.throttle = 1.0;
+    for (int i = 0; i < 1000 && b.tele.rpm < 6000; ++i) b.step(t, in, 0.001);  // rev it with the clutch in
+    double revs = b.tele.rpm;
+    if (g_verbose) {
+        Vec3 com = b.mb.centreOfMass(), rh = b.hub(Bike::kRearWheel), fh = b.hub(Bike::kFrontWheel);
+        std::printf("    COM height %.3f m, %.3f m ahead of the rear axle, %.3f m behind the front: wheelie needs %.2f g\n",
+                    com.y, com.z - rh.z, fh.z - com.z, (com.z - rh.z) / com.y);
+    }
+    in.clutch = 0.0;       // dump
+    double maxPitch = 0;
+    bool frontUp = false;
+    for (int i = 0; i < 2500 && !b.tele.crashed; ++i) {
+        b.step(t, in, 0.001);
+        maxPitch = std::max(maxPitch, b.tele.pitch_deg);
+        frontUp = frontUp || (!b.tele.front_contact && b.tele.rear_contact);
+        in.throttle = b.tele.pitch_deg > 30 ? 0.0 : (b.tele.pitch_deg > 20 ? 0.5 : 1.0);  // ride the balance point
+    }
+    if (g_verbose) std::printf("    revved to %.0f rpm, max pitch %.1f deg, front lifted %d, speed %.1f m/s\n", revs, maxPitch, frontUp ? 1 : 0, b.tele.speed);
+    CHECK(frontUp);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(maxPitch, 10.0, 60.0);
+}
+
+// Standing start, rider forward over the bars, full throttle, shifting at 9000 rpm: 0-100 km/h like a 300cc
+// two-stroke enduro bike (traction- and wheelie-limited: roughly 4-7 s).
+TEST(bike_accelerates_like_a_300) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    ride(b, t, BikeInput{}, 0.5);
+    BikeInput in;
+    in.body_fore = 0.9;
+    in.throttle = 1.0;
+    double t100 = -1;
+    for (int i = 0; i < 12000 && t100 < 0 && !b.tele.crashed; ++i) {
+        in.shift_up = b.tele.rpm > 9000 && b.tele.gear < 6 && b.tele.gear > 0;
+        in.throttle = b.tele.pitch_deg > 12 ? 0.3 : 1.0;  // the rider modulates the wheelie
+        b.step(t, in, 0.001);
+        if (b.tele.speed >= 27.78) t100 = i / 1000.0;
+    }
+    if (g_verbose) std::printf("    0-100 km/h: %.2f s (gear %d)\n", t100, b.tele.gear);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(t100, 3.0, 8.0);
+}
+
+// Hard braking from 54 km/h with weight back: stops in a believable distance without flipping.
+TEST(bike_brakes_hard) {
+    Terrain t = flatGround();
+    Bike b;
+    b.reset(t, 0, 0, 0);
+    b.setRolling(15.0);
+    BikeInput in;
+    in.front_brake = 0.40;  // a firm squeeze; a full grab on grippy hardpack stoppies (as it would for real)
+    in.rear_brake = 0.7;
+    in.clutch = 1.0;
+    in.body_fore = -0.6;
+    BikeInput coast;
+    coast.body_fore = -0.6;
+    ride(b, t, coast, 0.5);  // let the suspension settle first
+    double z0 = b.position().z, v0 = b.tele.speed, minPitch = 0;
+    int i = 0;
+    for (; i < 6000 && b.tele.speed > 0.2 && !b.tele.crashed; ++i) {
+        b.step(t, in, 0.001);
+        minPitch = std::min(minPitch, b.tele.pitch_deg);
+    }
+    double dist = b.position().z - z0;
+    if (g_verbose)
+        std::printf("    from %.1f m/s: stopped in %.1f m, %.2f s (%.2f g average), most nose-down %.1f deg\n", v0, dist,
+                    i / 1000.0, v0 / (i / 1000.0) / kGravity, minPitch);
+    CHECK(!b.tele.crashed);
+    CHECK_RANGE(dist, 10.0, 25.0);
+    CHECK_RANGE(minPitch, -25.0, 10.0);
+}
+
+TEST(bike_determinism) {
+    auto once = [] {
+        Terrain t = flatGround();
+        Bike b;
+        b.reset(t, 0, 0, 0);
+        b.setRolling(8.0);
+        BikeInput in;
+        in.throttle = 0.6;
+        in.steer = 0.3;
+        ride(b, t, in, 2.0);
+        return b.stateHash();
+    };
+    CHECK(once() == once());
 }
 
 // Dev tool: `sim_tests --trace-lane [speed]` prints the rig's hub height along the obstacle lane.

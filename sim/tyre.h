@@ -9,6 +9,7 @@
 // Carrier frame: +X = axle (rider's left), +Y = up, +Z = forward. Positive spin about +X rolls the wheel forward.
 #pragma once
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "vecmath.h"
@@ -79,6 +80,10 @@ struct WheelKinematics {
     Vec3 velocity;   // hub velocity
     Vec3 carrier_omega;  // angular velocity of the carrier (world; no component along the axle)
     double spin = 0;     // spin rate about the axle (rad/s), + = rolling forward
+    // Rate at which the tread moves past the carrier's element slots. Defaults to `spin`. On a bike the carrier is
+    // the fork/swingarm frame, which itself pitches, so `spin` (total, for velocities) and the slot rate (the
+    // wheel joint's own rate) differ slightly.
+    double tread_rate = std::numeric_limits<double>::quiet_NaN();
 };
 
 // One tick of contact: advect bristles, find contacts, compute forces. `scratch` holds obstacle indices.

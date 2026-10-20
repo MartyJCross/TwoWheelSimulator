@@ -54,7 +54,7 @@ TyreOutput tyreStep(const TyreParams& p, TyreState& s, const WheelKinematics& k,
     out.effective_radius = re;
 
     // Tread flows from the front of the patch to the back: slot i is fed from slot i + shift.
-    const double shift = k.spin * dt / dth;
+    const double shift = (std::isnan(k.tread_rate) ? k.spin : k.tread_rate) * dt / dth;
 
     terrain.gatherObstacles(k.hub, p.outer_radius + 0.05, nearObs);
     const double cullMargin = 2.0 * p.crown_radius;
